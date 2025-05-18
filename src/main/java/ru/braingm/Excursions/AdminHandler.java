@@ -28,7 +28,7 @@ public class AdminHandler {
 
     //ENUM на состояния админа, возможно потом нужно будет вынести в отдельный класс
     public enum AdminState {
-        NONE, AWAITING_ADD_TITLE, AWAITING_ADD_DESCRIPTION, AWAITING_EDIT_DESCRIPTION, AWAITING_EDIT_TITLE
+        NONE, AWAITING_ADD_TITLE, AWAITING_ADD_DESCRIPTION, AWAITING_EDIT_DESCRIPTION, AWAITING_EDIT_TITLE, AWAITING_EDIT_SCHEDULE, AWAITING_EDIT_INFO, AWAITING_EDIT_CONTACTS
     }
 
     public AdminHandler(ExcursionBot bot) {
@@ -66,10 +66,60 @@ public class AdminHandler {
                 handleDeleteExcursion(Integer.parseInt(data[2]));
             }
             if (data[1].equals("edit")) {
-                adminPendingExcursions.put(adminId, connector.getExcursion(Integer.parseInt(data[2])));
-                askForNewTitle();
+                switch (data[2]) {
+                    case "schedule" -> handleScheduleEdit();
+                    case "info" -> handleInfoEdit();
+                    case "contacts" -> handleContactsEdit();
+                    default -> {
+                        adminPendingExcursions.put(adminId, connector.getExcursion(Integer.parseInt(data[2])));
+                        askForNewTitle();
+                    }
+                }
+            }
+            if (data[1].equals("dataEdit")) {
+                handleDataEdit();
             }
         }
+    }
+
+    private void handleContactsEdit() {
+        adminStates.put(adminId, AdminState.AWAITING_EDIT_CONTACTS);
+        bot.sendMessage(adminId, "Введите новые контакты");
+    }
+
+    private void handleInfoEdit() {
+        adminStates.put(adminId, AdminState.AWAITING_EDIT_INFO);
+        bot.sendMessage(adminId, "Введите новое описание");
+    }
+
+    private void handleScheduleEdit() {
+        adminStates.put(adminId, AdminState.AWAITING_EDIT_SCHEDULE);
+        bot.sendMessage(adminId, "Введите новое расписание");
+    }
+
+
+    private void handleDataEdit() {
+        InlineKeyboardMarkup keyboard = new InlineKeyboardMarkup();
+        List<List<InlineKeyboardButton>> rows = new ArrayList<>();
+
+        InlineKeyboardButton scheduleButton = new InlineKeyboardButton("Расписание");
+        scheduleButton.setCallbackData("admin_edit_schedule");
+        rows.add(List.of(scheduleButton));
+
+        InlineKeyboardButton infoButton = new InlineKeyboardButton("Информация");
+        infoButton.setCallbackData("admin_edit_info");
+        rows.add(List.of(infoButton));
+
+        InlineKeyboardButton contactsButton = new InlineKeyboardButton("Контакты");
+        contactsButton.setCallbackData("admin_edit_contacts");
+        rows.add(List.of(contactsButton));
+
+        keyboard.setKeyboard(rows);
+        SendMessage message = new SendMessage();
+        message.setReplyMarkup(keyboard);
+        message.setText("Выберите что изменить");
+        message.setChatId(adminId);
+        bot.sendMessage(message);
     }
 
     public void handleAdminMessage(Message message) {
@@ -98,9 +148,14 @@ public class AdminHandler {
         rows.add(List.of(addButton));
 
         //Кнопка редактирования
-        InlineKeyboardButton editListButton = new InlineKeyboardButton("Изменить или удалить");
+        InlineKeyboardButton editListButton = new InlineKeyboardButton("Изменить или удалить экскурсии");
         editListButton.setCallbackData("admin_callList");
         rows.add(List.of(editListButton));
+
+        //Кнопка инфо
+        InlineKeyboardButton dataButton = new InlineKeyboardButton("Изменить инфо");
+        dataButton.setCallbackData("admin_dataEdit");
+        rows.add(List.of(dataButton));
 
         keyboard.setKeyboard(rows);
 
@@ -139,6 +194,18 @@ public class AdminHandler {
                 case AWAITING_ADD_DESCRIPTION -> handleAddDescription(text); // Добавлено
                 case AWAITING_EDIT_TITLE -> handleEditTitle(text);
                 case AWAITING_EDIT_DESCRIPTION -> handleEditDescription(text);
+                case AWAITING_EDIT_SCHEDULE -> {
+                    connector.writeData(1, text);
+                    adminStates.remove(adminId);
+                }
+                case AWAITING_EDIT_INFO -> {
+                    connector.writeData(2, text);
+                    adminStates.remove(adminId);
+                }
+                case AWAITING_EDIT_CONTACTS -> {
+                    connector.writeData(3, text);
+                    adminStates.remove(adminId);
+                }
             }
         } catch (Exception e) {
             logger.error("Ошибка обработки состояния", e);

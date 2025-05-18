@@ -119,5 +119,15 @@ public class DatabaseConnector {
         }
         return "пусто";
     }
+
+    public void writeData(int id, String text) {
+        try (PreparedStatement statement = connection.prepareStatement("UPDATE data SET description = ? WHERE id = ?")) {
+            statement.setString(1, text);
+            statement.setInt(2, id);
+            statement.executeUpdate();
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
 }
 
