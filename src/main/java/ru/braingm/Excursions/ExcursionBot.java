@@ -5,6 +5,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
+import org.telegram.telegrambots.meta.api.methods.updatingmessages.DeleteMessage;
+import org.telegram.telegrambots.meta.api.objects.Message;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton;
@@ -66,7 +68,7 @@ public class ExcursionBot extends TelegramLongPollingBot {
             }
             if (data.contains("view_")) {
                 int excursionId = Integer.parseInt(data.substring(5));
-                sendMessage(chatId, connector.getExcursion(excursionId).description());
+                sendExcursion(chatId, excursionId);
             }
             if (data.contains("send")) {
                 String[] context = data.split("_");
@@ -76,6 +78,16 @@ public class ExcursionBot extends TelegramLongPollingBot {
                     case "info" -> sendInfo(chatId);
                     case "contacts" -> sendContacts(chatId);
                 }
+            }
+            if (data.contains("deleteMessage")){
+                Message message = (Message) update.getCallbackQuery().getMessage();
+                deleteMessage(chatId, message.getMessageId());
+            }
+            if (data.contains("page")){
+                String[] context = data.split("_");
+                Message message = (Message) update.getCallbackQuery().getMessage();
+                deleteMessage(chatId, message.getMessageId());
+                sendExcursionsList(chatId, Integer.parseInt(context[1]));
             }
         } else if (update.hasMessage() && update.getMessage().hasText()) {
             if (update.getMessage().getText().contains("/admin")) {
@@ -92,6 +104,34 @@ public class ExcursionBot extends TelegramLongPollingBot {
             }
         }
     }
+
+    private void deleteMessage(long chatId, int messageId) {
+        DeleteMessage deleteMessage = new DeleteMessage();
+        deleteMessage.setChatId(chatId);
+        deleteMessage.setMessageId(messageId);
+        try {
+            execute(deleteMessage);
+        } catch (TelegramApiException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private void sendExcursion(long chatId, int excursionId) {
+        InlineKeyboardMarkup keyboard = new InlineKeyboardMarkup();
+        List<List<InlineKeyboardButton>> rows = new ArrayList<>();
+        InlineKeyboardButton deleteButton = new InlineKeyboardButton("Назад к списку");
+        deleteButton.setCallbackData("deleteMessage");
+        rows.add(List.of(deleteButton));
+        keyboard.setKeyboard(rows);
+
+        SendMessage message = new SendMessage();
+        message.setChatId(chatId);
+        message.setText(connector.getExcursion(excursionId).description());
+        message.enableMarkdown(true);
+        message.setReplyMarkup(keyboard);
+        sendMessage(message);
+    }
+
 
     void sendMessage(long chatId, String text) {
         SendMessage message = new SendMessage(String.valueOf(chatId), text);
@@ -180,7 +220,7 @@ public class ExcursionBot extends TelegramLongPollingBot {
         List<List<InlineKeyboardButton>> rows = new ArrayList<>();
 
         //Кнопка экскурсий
-        InlineKeyboardButton excursionsButton = new InlineKeyboardButton("Список экскурсий");
+        InlineKeyboardButton excursionsButton = new InlineKeyboardButton("Автобусные экскурсии");
         excursionsButton.setCallbackData("send_excursionLIst");
         rows.add(List.of(excursionsButton));
 
