@@ -33,7 +33,7 @@ public class AdminHandler {
 
     public AdminHandler(ExcursionBot bot) {
         this.bot = bot;
-        this.connector = DatabaseConnector.getInstance();
+        connector = DatabaseConnector.getInstance();
         this.logger = LoggerFactory.getLogger(AdminHandler.class);
         this.adminId = Long.parseLong(new ConfigLoader().getProperty("admin.chatId"));
     }

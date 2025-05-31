@@ -4,6 +4,7 @@ import lombok.Getter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
+import org.telegram.telegrambots.meta.api.methods.AnswerCallbackQuery;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.methods.updatingmessages.DeleteMessage;
 import org.telegram.telegrambots.meta.api.objects.Message;
@@ -14,9 +15,7 @@ import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import ru.braingm.ConfigLoader;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -25,7 +24,6 @@ public class ExcursionBot extends TelegramLongPollingBot {
     private static final Logger logger = LoggerFactory.getLogger(ExcursionBot.class);
     @Getter
     private List<Excursion> excursions;
-    private final Map<String, String> botData = new HashMap<>();
     private final DatabaseConnector connector;
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
     private final AdminHandler adminHandler;
@@ -42,8 +40,6 @@ public class ExcursionBot extends TelegramLongPollingBot {
         this.connector = DatabaseConnector.getInstance();
         this.excursions = connector.loadExcursionsFromDatabase();
         startCacheRefresh();
-
-
     }
 
 
@@ -55,7 +51,7 @@ public class ExcursionBot extends TelegramLongPollingBot {
             } catch (Exception e) {
                 logger.error("Cache refresh error", e);
             }
-        }, 10, 10, TimeUnit.MINUTES);
+        }, 1, 1, TimeUnit.HOURS);
     }
 
     @Override
@@ -69,6 +65,11 @@ public class ExcursionBot extends TelegramLongPollingBot {
             if (data.contains("view_")) {
                 int excursionId = Integer.parseInt(data.substring(5));
                 sendExcursion(chatId, excursionId);
+                try {
+                    execute(AnswerCallbackQuery.builder().callbackQueryId(update.getCallbackQuery().getId()).build());
+                } catch (TelegramApiException e) {
+                    throw new RuntimeException(e);
+                }
             }
             if (data.contains("send")) {
                 String[] context = data.split("_");
@@ -79,11 +80,11 @@ public class ExcursionBot extends TelegramLongPollingBot {
                     case "contacts" -> sendContacts(chatId);
                 }
             }
-            if (data.contains("deleteMessage")){
+            if (data.contains("deleteMessage")) {
                 Message message = (Message) update.getCallbackQuery().getMessage();
                 deleteMessage(chatId, message.getMessageId());
             }
-            if (data.contains("page")){
+            if (data.contains("page")) {
                 String[] context = data.split("_");
                 Message message = (Message) update.getCallbackQuery().getMessage();
                 deleteMessage(chatId, message.getMessageId());
@@ -126,7 +127,10 @@ public class ExcursionBot extends TelegramLongPollingBot {
 
         SendMessage message = new SendMessage();
         message.setChatId(chatId);
-        message.setText(connector.getExcursion(excursionId).description());
+        message.setText(excursions.stream()
+                .filter(excursion -> excursionId == excursion.id())
+                .findFirst()
+                .get().description());
         message.enableMarkdown(true);
         message.setReplyMarkup(keyboard);
         sendMessage(message);
